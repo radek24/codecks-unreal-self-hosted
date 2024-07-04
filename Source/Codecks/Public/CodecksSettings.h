@@ -19,4 +19,11 @@ public:
 	 */
 	UPROPERTY(Config, EditAnywhere)
 	FString ReportToken = TEXT("XXXXXXXXXXXXXXXXXXXX");
+
+
+	/**
+	 * @brief This url will be used for card creation. If you are self hosting, modify this field
+	 */
+	UPROPERTY(Config, EditAnywhere)
+	FString ReportCreateUrl = TEXT("https://api.codecks.io/user-report/v1/create-report?token=");
 };

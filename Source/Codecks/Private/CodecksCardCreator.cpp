@@ -12,8 +12,51 @@
 #include "CodecksSettings.h"
 #include "ImageUtils.h"
 
-#define CODECKS_URL TEXT("https://api.codecks.io/user-report/v1/create-report?token=")
 #define ENDL "\r\n"
+#define DASHES "--"
+
+
+#include "Misc/FileHelper.h"
+#include "HAL/PlatformFilemanager.h"
+#include "Misc/Paths.h"
+
+#include "Kismet/GameplayStatics.h"
+
+#define stringify(name) #name
+#define EnumValStr(Enum, Val)  EnumToString( (stringify(Enum)) , Val)
+
+FString UCodecksCardCreator::EnumToString(const FString& enumName, const uint8 value)
+{
+	UEnum* pEnum = FindObject<UEnum>(ANY_PACKAGE, *enumName);
+	return *(pEnum ? pEnum->GetNameStringByIndex(static_cast<uint8>(value)) : "null");
+}
+
+
+
+void UCodecksCardCreator::CreateCardText(FString& outCardText, const FString Header, const FString content, const Category category, const Reproducibility reproducibility, const FString email)
+{
+	FString PlatformName = UGameplayStatics::GetPlatformName();
+
+	FString AppVersion;
+	
+	GConfig->GetString(
+		TEXT("/Script/EngineSettings.GeneralProjectSettings"),
+		TEXT("ProjectVersion"),
+		AppVersion,
+		GGameIni
+	);
+
+	UE_LOG(LogTemp, Warning, TEXT("Response: %s"), *EnumValStr(Category, (uint8)category));
+	
+	outCardText = "**"+ EnumValStr(Category, (uint8)category) +" - "+Header+"**\n"
+		"- **Platforma:** "+PlatformName+"\n"
+		"- **Verze:** "+AppVersion+"\n"
+		"- **Reprodukovatelnost:** "+ EnumValStr(Reproducibility, (uint8)reproducibility) +"\n"
+		"- **Kategorie:** " + EnumValStr(Category, (uint8)category) + "\n"
+		"- **Uzivatel:** " + email + "\n"
+		+ content;
+}
+
 
 inline void append_data(TArray<uint8>& data, const char* str, size_t len)
 {
@@ -57,6 +100,9 @@ void ProcessCardCreationResponse(
 
 	bool ok = false;
 	FString message = "Unknown Error";
+	
+
+	UE_LOG(LogTemp, Warning, TEXT("Response: %s"), *ResponseContent);
 
 	TSharedRef<TJsonReader<TCHAR>> JsonReader = TJsonReaderFactory<TCHAR>::Create(ResponseContent);
 	TSharedPtr<FJsonObject> OutObject;
@@ -75,10 +121,10 @@ void ProcessCardCreationResponse(
 	}
 
 	TArray<uint8> payload;
-	payload.Reserve(1024);
+	payload.Reserve(2048*2);
 
 	//randomize terminator string
-	char terminator[128] = "TERMINATOR";
+	char terminator[128] = "1";
 	{
 		char* p = terminator + std::strlen(terminator);
 		for (int i = 0; i != 32; ++i)
@@ -126,6 +172,9 @@ void ProcessCardCreationResponse(
 
 			const FCodecksFileInfo& file = *pfileInfo;
 
+			
+
+
 			FString uriQuery;
 			if (!doc->TryGetStringField(TEXT("url"), uriQuery))
 			{
@@ -148,11 +197,19 @@ void ProcessCardCreationResponse(
 			pRequest->SetVerb(TEXT("POST"));
 
 
-			FString metaContentType = TEXT("multipart/form-data; boundary=\"");
+			FString metaContentType = TEXT("multipart/form-data; boundary=");
 			metaContentType.Append(terminator);
-			metaContentType.Append("\"");
 
 			pRequest->SetHeader(TEXT("Content-Type"), metaContentType);
+			pRequest->SetHeader(TEXT("X-Account"), TEXT("enterprise"));
+
+			FString reportToken = TEXT("");
+			if (const UCodecksSettings* CodecksSettings = GetDefault<UCodecksSettings>())
+			{
+				reportToken = CodecksSettings->ReportToken;
+			}
+
+			pRequest->SetHeader(TEXT("X-Auth-Token"), reportToken);
 
 			const char* fieldNames[] = {
 				"key",
@@ -174,9 +231,9 @@ void ProcessCardCreationResponse(
 				FString value;
 				if (fields->TryGetStringField(key, value))
 				{
-					append_ansi(payload, ("--")); append_ansi(payload, terminator); append_ansi(payload, ENDL);
+					append_ansi(payload, DASHES); append_ansi(payload, terminator); append_ansi(payload, ENDL);
 					append_ansi(payload, "Content-Disposition: form-data; name=\"");
-					append_fstring(payload, key);
+					append_fstring(payload, key.ToLower());
 					append_ansi(payload, "\"" ENDL);
 					append_ansi(payload, ENDL);
 					append_fstring(payload, value);
@@ -205,13 +262,13 @@ void ProcessCardCreationResponse(
 				break;
 			}
 
-			append_ansi(payload, ("--")); append_ansi(payload, terminator); append_ansi(payload, ENDL);
+			append_ansi(payload, (DASHES)); append_ansi(payload, terminator); append_ansi(payload, ENDL);
 			append_ansi(payload, ("Content-Disposition: form-data; name=\"Content-Type\"" ENDL ENDL));
 			append_fstring(payload, contentType);
 			append_ansi(payload, ENDL);
 
 			//FILE META
-			append_ansi(payload, ("--")); append_ansi(payload, terminator); append_ansi(payload, ENDL);
+			append_ansi(payload, (DASHES)); append_ansi(payload, terminator); append_ansi(payload, ENDL);
 			append_ansi(payload, ("Content-Type: "));
 			append_fstring(payload, contentType);
 			append_ansi(payload, ENDL);
@@ -219,17 +276,24 @@ void ProcessCardCreationResponse(
 			//FILE HEADER
 			append_ansi(payload, ("Content-Disposition: form-data; name=\"file\"; filename=\""));
 			append_fstring(payload, fileName);
+			append_ansi(payload, ("\""));
 			append_ansi(payload, (ENDL));
-
+			
 			//FILE CONTENT
 			append_ansi(payload, ENDL);
 			payload.Append(file.data.GetData(), file.data.Num());
+			append_ansi(payload, ENDL DASHES); append_ansi(payload, terminator); append_ansi(payload, "--");
 
-			append_ansi(payload, ENDL "--"); append_ansi(payload, terminator); append_ansi(payload, "--");
+			FString FilePath3 = FPaths::ProjectSavedDir() + TEXT("Reports/request.bin");
+
+			bool bSuccess = FFileHelper::SaveArrayToFile(payload, *FilePath3);
+
+			FString str = (char*)payload.GetData();
+			UE_LOG(LogTemp, Log, TEXT("Payload: %s"), *str);
 
 			pRequest->SetContent(payload);
 
-			pRequest->SetURL(uriQuery);
+			pRequest->SetURL("/*anonymized URL*/");
 
 			pRequest->OnProcessRequestComplete().BindLambda(
 				[createdCallback, errorCallback](FHttpRequestPtr pRequest, FHttpResponsePtr pResponse, bool connectedSuccessfully) mutable
@@ -275,14 +339,15 @@ void UCodecksCardCreator::CreateNewCodecksCard(
 	const FString& userEmail)
 {
 	FString reportToken = TEXT("");
+	FString uriBase = TEXT("");
 	if (const UCodecksSettings* CodecksSettings = GetDefault<UCodecksSettings>())
 	{
+		uriBase = CodecksSettings->ReportCreateUrl;
 		reportToken = CodecksSettings->ReportToken;
 	}
 
 	//https://dev.epicgames.com/community/learning/tutorials/ZdXD/call-rest-api-using-http-json-from-ue5-c
-	FString uriBase = CODECKS_URL;
-
+	 
 	FString uriQuery = uriBase + reportToken;
 
 	FHttpModule& httpModule = FHttpModule::Get();
@@ -324,7 +389,16 @@ void UCodecksCardCreator::CreateNewCodecksCard(
 
 	FString RequestContent;
 	TSharedRef< TJsonWriter<> > Writer = TJsonWriterFactory<>::Create(&RequestContent);
+
 	FJsonSerializer::Serialize(json, Writer);
+
+
+	FString OutputString4;
+	TSharedRef< TJsonWriter<> > MyWriter = TJsonWriterFactory<>::Create(&OutputString4);
+	FJsonSerializer::Serialize(json, MyWriter);
+
+	UE_LOG(LogTemp, Warning, TEXT("resulting jsonString -> %s"), *OutputString4);
+
 
 	pRequest->SetContentAsString(RequestContent);
 	pRequest->SetURL(uriQuery);
@@ -355,22 +429,41 @@ void UCodecksCardCreator::CreateNewCodecksCard(
 			createdCallback.ExecuteIfBound(CodecksCardCreationStatus::Fail);
 		}
 	});
-
 	pRequest->ProcessRequest();
 }
 
 FDelegateHandle UCodecksCardCreator::screenshotDelegateHandle;
 
-void UCodecksCardCreator::TakeScreenshotHelper(bool showUI, const FCodecksScreenshotCreated& createdCallback)
+
+
+void UCodecksCardCreator::TakeScreenshotHelper(bool showUI, FString filename, const FCodecksScreenshotCreated& createdCallback)
 {
 	UCodecksCardCreator::screenshotDelegateHandle = UGameViewportClient::OnScreenshotCaptured().AddLambda([=](int32 Width, int32 Height, const TArray<FColor>& Colors) {
 
 		UGameViewportClient::OnScreenshotCaptured().Remove(UCodecksCardCreator::screenshotDelegateHandle);
 
 		FCodecksFileInfo screenshotFile;
-		screenshotFile.filename = TEXT("codecksCardScreenshot.png");
+
+		const FString DateName = FDateTime::Now().ToString(TEXT("%Y-%m-%d %H-%M-%S"));
+		const FString Filename = DateName + ".png";
+
+		screenshotFile.filename = Filename;
 		screenshotFile.type = CodecksFileType::PNG;
 		FImageUtils::ThumbnailCompressImageArray(Width, Height, Colors, screenshotFile.data);
+		
+		/*FString FilePath = FPaths::ProjectSavedDir() + TEXT("Reports/Screen.png");
+
+		bool bSuccess = FFileHelper::SaveArrayToFile((screenshotFile.data), *FilePath);
+
+		if (bSuccess)
+		{
+			UE_LOG(LogTemp, Log, TEXT("File saved successfully at %s"), *FilePath);
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("Failed to save file at %s"), *FilePath);
+		}*/
+
 
 		createdCallback.ExecuteIfBound(MoveTemp(screenshotFile));
 	});

@@ -39,6 +39,32 @@ enum class CodecksCardCreationStatus : uint8
 	Fail
 };
 
+UENUM(BlueprintType)
+enum class Reproducibility : uint8
+{
+	EveryTime = 0,
+	Sometimes,
+	Randomly,
+	Untested,
+	Never,
+};
+
+UENUM(BlueprintType)
+enum class Category : uint8
+{
+	Localization = 0,
+	Performace,
+	Save,
+	Settings,
+	AI,
+	Audio,
+	General,
+	Graphics,
+	UI
+};
+
+
+
 USTRUCT(BlueprintType)
 struct FCodecksFileInfo
 {
@@ -66,6 +92,11 @@ class CODECKS_API UCodecksCardCreator : public UObject
 
 public:
 
+	// Creates a standardized text that will be used in created card
+	UFUNCTION(BlueprintPure, Category = Codecks)
+	static void CreateCardText(FString& outCardText, const FString header, const FString content, const Category category, const Reproducibility reproducibility,const FString email);
+
+
 	// creates a codecks card (requires a codecks token configured in the plugin project settings)
 	UFUNCTION(BlueprintCallable, Category = Codecks)
 	static void CreateNewCodecksCard(
@@ -80,8 +111,12 @@ public:
 
 	// helper function for taking a screenshot and preparing it as a png attachment for codecks
 	UFUNCTION(BlueprintCallable, Category = Codecks)
-	static void TakeScreenshotHelper(bool showUI, const FCodecksScreenshotCreated& createdCallback);
+	static void TakeScreenshotHelper(bool showUI, FString filename,const FCodecksScreenshotCreated& createdCallback);
+
+
+	static FString EnumToString(const FString& enumName, const uint8 value);
 
 private:
 	static FDelegateHandle screenshotDelegateHandle;
+	
 };
