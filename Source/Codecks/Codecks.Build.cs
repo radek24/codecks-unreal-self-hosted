@@ -9,17 +9,16 @@ public class Codecks : ModuleRules
     {
         PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
-        PublicIncludePaths.AddRange(
-            new string[] {
-                Path.Combine(ModuleDirectory, "Public")
-            }
-        );
+        PublicIncludePaths.Add(Path.Combine(ModuleDirectory, "Public"));
+        PrivateIncludePaths.Add(Path.Combine(ModuleDirectory, "Private"));
+
 
         PublicDependencyModuleNames.AddRange(
             new string[]
             {
                 "Core",
                 "HTTP",
+                "ApplicationCore",
                 "Json",
             }
         );
@@ -27,9 +26,14 @@ public class Codecks : ModuleRules
         PrivateDependencyModuleNames.AddRange(
             new string[]
             {
+                "Projects",
+                "InputCore",
+                "ToolMenus",
                 "CoreUObject",
                 "Engine",
-                "DeveloperSettings"
+                "Slate",
+                "SlateCore",
+                "DeveloperSettings",
             }
         );
 
