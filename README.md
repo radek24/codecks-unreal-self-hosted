@@ -1,6 +1,6 @@
 # Codecks Bug & Feedback Reporter for Unreal Engine
 
-> :warning: **Work in progress**: This plugin is still very much work in progress, currently there is no report window and no documentation was created. I do not recomend you use this plugin for your own projects.
+> :warning: **Work in progress**: This plugin is still very much work in progress, currently there is no documentation.
 
 Collect bugs and feedback right from your Unreal game and keep players in the loop what happens with their feedback.
 
@@ -13,8 +13,9 @@ It was modified to suit our needs.
 - Setting to set different url than official codecks server
 - Fixed file upload on self-hosted servers
 - Utils functions used in our reporting window (read/write to files, get game version)
-- Created custom Log category for better readability
-
+- Send your reports to either bug report deck or feedback deck
+- Change target API for internal and public testing
+- Custom Log category for better readability
 
 
 
