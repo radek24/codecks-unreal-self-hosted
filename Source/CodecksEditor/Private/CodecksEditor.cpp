@@ -8,17 +8,21 @@
 #include "JsonParserBase.h"
 #include "ISettingsModule.h"
 #include "ISettingsSection.h"
-
-#include "GenericPlatform/GenericPlatformApplicationMisc.h"
-#include "Windows/WindowsPlatformApplicationMisc.h"
+#include "HAL/PlatformApplicationMisc.h"
 
 static const FName CodecksEditorTabName("CodecksEditor");
 
 #define LOCTEXT_NAMESPACE "FCodecksEditorModule"
 
+
+
+bool AreSettingInvalid(const UCodecksSettings* CodecksSettings){
+	bool InternalSettingsInvalid = CodecksSettings->useDifferentReportingTokenPerConfiguration && (CodecksSettings->InternalReportToken.IsEmpty() || CodecksSettings->InternalFeedbackToken.IsEmpty() || CodecksSettings->InternalCodecksURL.IsEmpty());
+	return CodecksSettings->PublicFeedbackToken.IsEmpty() || CodecksSettings->PublicReportToken.IsEmpty() || CodecksSettings->PublicCodecksURL.IsEmpty() || InternalSettingsInvalid;
+}
+
 void FCodecksEditorModule::StartupModule()
 {
-
 	RegisterSettings();
 	FCodecksEditorStyle::Initialize();
 	FCodecksEditorStyle::ReloadTextures();
@@ -33,7 +37,25 @@ void FCodecksEditorModule::StartupModule()
 		FCanExecuteAction());
 
 	UToolMenus::RegisterStartupCallback(FSimpleMulticastDelegate::FDelegate::CreateRaw(this, &FCodecksEditorModule::RegisterMenus));
+
+
+	if (const UCodecksSettings* CodecksSettings = GetDefault<UCodecksSettings>())
+	{
+		if (AreSettingInvalid(CodecksSettings))
+		{
+			TSharedRef<FTokenizedMessage> WarnAboutNoReportTokens = FMessageLog("LoadErrors").Warning();
+			WarnAboutNoReportTokens->AddToken(FTextToken::Create(INVTEXT("Codecks plugin wasnt set up properly! Make sure you do so in the settings.")));
+
+			const auto GotoAction = FOnActionTokenExecuted::CreateLambda([CodecksSettings] {
+				FModuleManager::LoadModuleChecked<ISettingsModule>("Settings")
+					.ShowViewer(CodecksSettings->GetContainerName(), CodecksSettings->GetCategoryName(), CodecksSettings->GetSectionName());
+				});
+			WarnAboutNoReportTokens->AddToken(FActionToken::Create(INVTEXT("Open Codecks Settings"), INVTEXT("Goto Codecks User Report Settings"), GotoAction));
+		}
+	}
 }
+
+
 
 void FCodecksEditorModule::ShutdownModule()
 {
@@ -51,8 +73,7 @@ void FCodecksEditorModule::PluginButtonClicked()
 	TSoftClassPtr<UJsonParserBase> CustomJsonParserSoftClass= (GetDefault<UCodecksSettings>()->CustomJsonParser);
 	if (CustomJsonParserSoftClass.IsNull())
 	{
-		FText DialogText = FText::FromString("Json parser wasn't set, set the default one or custom one in Project Settings > Codecks");
-		FMessageDialog::Open(EAppMsgType::Ok, DialogText);
+		FMessageDialog::Open(EAppMsgType::Ok, FText::FromString("Json parser wasn't set, set the default one or custom one in Project Settings > Codecks"));
 		return;
 	}
 	UClass* classReference = CustomJsonParserSoftClass.LoadSynchronous();

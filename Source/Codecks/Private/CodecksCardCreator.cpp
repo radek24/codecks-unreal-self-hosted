@@ -110,9 +110,16 @@ void ProcessCardCreationResponse(
 		*p = 0;
 	}
 
+
 	TArray< TSharedPtr<FJsonValue> > uploadUrls;
 	const TArray< TSharedPtr<FJsonValue> >* puploadUrls = &uploadUrls;
+	//If we don't have any files we can just exit with success
 	if (!(OutObject->TryGetArrayField(TEXT("uploadUrls"), puploadUrls))) return;
+
+	if (puploadUrls->Num() == 0) {
+		UE_LOG(LogCodeck, Log, TEXT("NO upload urls"));
+		createdCallback.ExecuteIfBound(CodecksCardCreationStatus::Success);
+	}
 
 	for (auto& upload : *puploadUrls)
 	{
@@ -156,10 +163,6 @@ void ProcessCardCreationResponse(
 		FString metaContentType = TEXT("multipart/form-data; boundary=");
 		metaContentType.Append(terminator);
 		pRequest->SetHeader(TEXT("Content-Type"), metaContentType);
-
-		FString reportToken = TEXT("");
-
-		reportToken = GetDefault<UCodecksSettings>()->ReportToken;
 
 		const char* fieldNames[] = {
 			"key",
@@ -265,18 +268,10 @@ void UCodecksCardCreator::CreateNewCodecksCard(
 	const FCodecksCardCreated& createdCallback,
 	const FCodecksCardError& errorCallback,
 	const CodecksSeverity severity,
-	const FString& userEmail)
+	const FString& userEmail,
+	const CodecksDeckType deckType)
 {
-	FString reportToken = TEXT("");
-	FString uriBase = TEXT("");
-	if (const UCodecksSettings* CodecksSettings = GetDefault<UCodecksSettings>())
-	{
-		uriBase = CodecksSettings->ReportCreateUrl;
-		reportToken = CodecksSettings->ReportToken;
-	}
-
-	//https://dev.epicgames.com/community/learning/tutorials/ZdXD/call-rest-api-using-http-json-from-ue5-c
-	FString uriQuery = uriBase + reportToken;
+	FString uriQuery = GetReportUrl(deckType);
 
 	FHttpModule& httpModule = FHttpModule::Get();
 
@@ -297,8 +292,9 @@ void UCodecksCardCreator::CreateNewCodecksCard(
 	case CodecksSeverity::Low:
 		json->SetStringField(TEXT("severity"), TEXT("low")); break;
 	case CodecksSeverity::None:
-	default:
 		break;
+	default:
+		checkNoEntry();
 	}
 
 	FString cleanMail = userEmail.TrimStartAndEnd();
@@ -360,16 +356,57 @@ void UCodecksCardCreator::CreateNewCodecksCard(
 	pRequest->ProcessRequest();
 }
 
-FDelegateHandle UCodecksCardCreator::screenshotDelegateHandle;
+FString UCodecksCardCreator::GetReportUrl(CodecksDeckType type) {
+	FString APIToken = TEXT("");
+	FString uriBase = TEXT("");
+
+	bool isShipping = false;
+#if UE_BUILD_SHIPPING
+	isShipping = true;
+#endif
+
+	const UCodecksSettings* CodecksSettings = GetDefault<UCodecksSettings>();
+	if (!CodecksSettings) {
+		UE_LOG(LogCodeck, Fatal, TEXT("Can't acess Codeck settings"));
+		return TEXT("");
+	}
+
+	if (isShipping || (!CodecksSettings->useDifferentReportingTokenPerConfiguration)) {
+		uriBase = CodecksSettings->PublicCodecksURL;
+		switch (type)
+		{
+		case CodecksDeckType::Feedback:
+			APIToken = CodecksSettings->PublicFeedbackToken;
+			break;
+		case CodecksDeckType::BugReport:
+			APIToken = CodecksSettings->PublicReportToken;
+			break;
+		default:
+			checkNoEntry();
+		}
+	}
+	else {
+		uriBase = CodecksSettings->InternalCodecksURL;
+		switch (type)
+		{
+		case CodecksDeckType::Feedback:
+			APIToken = CodecksSettings->InternalFeedbackToken;
+			break;
+		case CodecksDeckType::BugReport:
+			APIToken = CodecksSettings->InternalReportToken;
+			break;
+		default:
+			checkNoEntry();
+		}
+	}
+	return uriBase + APIToken;
+}
 
 void UCodecksCardCreator::TakeScreenshotHelper(bool showUI, const FCodecksScreenshotCreated& createdCallback)
 {
-	UCodecksCardCreator::screenshotDelegateHandle = UGameViewportClient::OnScreenshotCaptured().AddLambda([=](int32 Width, int32 Height, const TArray<FColor>& Colors) {
-
-		UGameViewportClient::OnScreenshotCaptured().Remove(UCodecksCardCreator::screenshotDelegateHandle);
+	UGameViewportClient::OnScreenshotCaptured().AddLambda([=](int32 Width, int32 Height, const TArray<FColor>& Colors) {
 		FCodecksFileInfo screenshotFile;
 
-		//const FString DateName = FDateTime::Now().ToString(TEXT("%Y_%m_%d__%H_%M_%S"));
 		const FString DateName = "Screenshot";
 		const FString Filename = DateName + ".png";
 
@@ -380,7 +417,6 @@ void UCodecksCardCreator::TakeScreenshotHelper(bool showUI, const FCodecksScreen
 		FString FilePath = FPaths::ProjectSavedDir() + TEXT("Reports/") + Filename;
 
 		bool bSuccess = FFileHelper::SaveArrayToFile((screenshotFile.data), *FilePath);
-
 		if (bSuccess)
 		{
 			UE_LOG(LogCodeck, Log, TEXT("File saved successfully at %s"), *FilePath);

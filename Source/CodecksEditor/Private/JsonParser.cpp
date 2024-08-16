@@ -40,11 +40,12 @@ void UJsonParser::ParseJsonFromClipboard_Implementation(const FString& input)
     JsonItem->ToSharedRef()->TryGetNumberField(TEXT("Y"), yaw);
     JsonItem->ToSharedRef()->TryGetNumberField(TEXT("R"), roll);
 
+    /*
     if ((x && y && z && pitch && yaw && roll)) {
         FMessageDialog::Open(EAppMsgType::Ok, jsonErrorMessage);
         return;
     }
-
+    */
     const FViewport* activeViewport = GEditor->GetActiveViewport();
     FEditorViewportClient* editorViewClient = (activeViewport != nullptr) ? (FEditorViewportClient*)activeViewport->GetClient() : nullptr;
 

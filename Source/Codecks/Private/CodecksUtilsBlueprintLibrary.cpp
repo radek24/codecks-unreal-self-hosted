@@ -26,3 +26,11 @@ bool UCodecksUtilsBlueprintLibrary::LoadStringFromFile(FString path, FString& te
 	return FFileHelper::LoadFileToString(textToLoad, *path, FFileHelper::EHashOptions::None, flagToReadWrite);
 }
 
+bool UCodecksUtilsBlueprintLibrary::WithEditor()
+{
+#if WITH_EDITOR
+	return true;
+#else
+	return false;
+#endif
+}

@@ -28,4 +28,6 @@ public:
 	UFUNCTION(BlueprintCallable, meta = (DisplayName = "Load String From File"), Category = "Codecks|Utils")
 	static bool LoadStringFromFile(FString path, FString& textToLoad);
 
+	UFUNCTION(BlueprintPure, meta = (DisplayName = "Is In Editor"), Category = "Codecks|Utils")
+	static bool WithEditor();
 };

@@ -9,7 +9,14 @@
 
 #include "CodecksCardCreator.generated.h"
 
-UENUM()
+UENUM(BlueprintType)
+enum class CodecksDeckType : uint8
+{
+	BugReport = 0,
+	Feedback
+};
+
+UENUM(BlueprintType)
 enum class CodecksSeverity : uint8
 {
 	None = 0,
@@ -79,7 +86,8 @@ public:
 		const FCodecksCardCreated& createdCallback,
 		const FCodecksCardError& errorCallback,
 		const CodecksSeverity severity = CodecksSeverity::None,
-		const FString& userEmail = TEXT("")
+		const FString& userEmail = TEXT(""),
+		const CodecksDeckType deckType = CodecksDeckType::BugReport
 	);
 
 	// helper function for taking a screenshot and preparing it as a png attachment for codecks
@@ -87,6 +95,7 @@ public:
 	static void TakeScreenshotHelper(bool showUI,const FCodecksScreenshotCreated& createdCallback);
 
 	static FString GetContentTypeFromFile(CodecksFileType fileType);
+	static FString GetReportUrl(CodecksDeckType type);
 
 private:
 	static FDelegateHandle screenshotDelegateHandle;

@@ -20,6 +20,7 @@ public class Codecks : ModuleRules
                 "HTTP",
                 "ApplicationCore",
                 "Json",
+                "UMG"
             }
         );
 
@@ -28,12 +29,12 @@ public class Codecks : ModuleRules
             {
                 "Projects",
                 "InputCore",
-                "ToolMenus",
                 "CoreUObject",
                 "Engine",
                 "Slate",
                 "SlateCore",
                 "DeveloperSettings",
+
             }
         );
 
