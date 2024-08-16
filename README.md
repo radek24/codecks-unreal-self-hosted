@@ -1,6 +1,10 @@
 # Codecks Bug & Feedback Reporter for Unreal Engine
 
-> :warning: **Work in progress**: This plugin is still very much work in progress, currently there is no documentation.
+> :warning: **Work in progress**: This plugin is still very much work in progress, currently there is very little documentation.
+
+[`Documentation`](https://docs.google.com/document/d/114XjOAXXSG9q5k41aJJrlJY6LHzycnCGiXrVEVdEPT0).
+
+
 
 Collect bugs and feedback right from your Unreal game and keep players in the loop what happens with their feedback.
 
